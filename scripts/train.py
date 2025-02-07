@@ -26,6 +26,18 @@ import openpi.training.sharding as sharding
 import openpi.training.utils as training_utils
 import openpi.training.weight_loaders as _weight_loaders
 
+import os
+os.environ.update({
+    "NCCL_LL128_BUFFSIZE": "-2",  # NCCL에서 사용하는 큰 버퍼 사이즈를 설정하여 통신 성능 향상
+    "NCCL_LL_BUFFSIZE": "-2",     # 더 낮은 지연시간을 위한 버퍼 사이즈 설정
+    "NCCL_PROTO": "SIMPLE,LL,LL128",  # 다양한 프로토콜을 설정, SIMPLE은 저지연을 위한 설정
+})
+os.environ['XLA_FLAGS'] = (
+    '--xla_gpu_triton_gemm_any=True '  # Triton 기반 GEMM을 사용하여 행렬 곱셈 최적화
+    '--xla_gpu_enable_latency_hiding_scheduler=True '  # 계산과 통신을 겹쳐서 지연시간 숨기기
+)
+
+print("jax env initialized")
 
 def init_logging():
     """Custom logging format for better readability."""
