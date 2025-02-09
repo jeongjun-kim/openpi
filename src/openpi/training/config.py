@@ -19,6 +19,7 @@ import openpi.models.pi0_fast as pi0_fast
 import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
+import openpi.policies.furniture_bench_policy as furniture_bench_policy
 import openpi.policies.libero_policy as libero_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
@@ -433,6 +434,46 @@ _CONFIGS = [
             data_transforms=lambda model: _transforms.Group(
                 inputs=[droid_policy.DroidInputs(action_dim=model.action_dim, model_type=ModelType.PI0_FAST)],
                 outputs=[droid_policy.DroidOutputs()],
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+            ),
+        ),
+    ),
+    ################################################################################################################
+    # custom inference
+    ################################################################################################################
+    #
+    # Inference FRANKA BASE configs.
+    #
+    TrainConfig(
+        name="pi0_fast_base",
+        model=pi0_fast.Pi0FASTConfig(action_dim=32, action_horizon=10),
+        data=SimpleDataConfig(
+            assets=AssetsConfig(asset_id="franka"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[
+                    furniture_bench_policy.FurnitureBenchInputs(
+                        action_dim=model.action_dim, model_type=ModelType.PI0_FAST
+                    )
+                ],
+                outputs=[furniture_bench_policy.FurnitureBenchOutputs()],
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+            ),
+        ),
+    ),
+    TrainConfig(
+        name="pi0_base",
+        model=pi0.Pi0Config(action_dim=32, action_horizon=10),
+        data=SimpleDataConfig(
+            assets=AssetsConfig(asset_id="droid"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[
+                    furniture_bench_policy.FurnitureBenchInputs(action_dim=model.action_dim, model_type=ModelType.PI0)
+                ],
+                outputs=[furniture_bench_policy.FurnitureBenchOutputs()],
             ),
             base_config=DataConfig(
                 prompt_from_task=True,
