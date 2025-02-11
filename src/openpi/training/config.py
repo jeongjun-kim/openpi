@@ -625,13 +625,28 @@ _CONFIGS = [
         num_train_steps=20_000,
     ),
     ################################################################################################################
-    # custom inference
+    # custom inference / fine-tune
     ################################################################################################################
     TrainConfig(
         name="pi0_fast_furniturebench_insert",
         model=pi0_fast.Pi0FASTConfig(action_dim=8, action_horizon=10, max_token_len=180),
         data=LeRobotFurnitureBenchDataConfig(
             repo_id="fb_insert",
+            # repo_id="physical-intelligence/libero",
+            base_config=DataConfig(
+                local_files_only=True,  # Set to True for local-only datasets.
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        num_train_steps=30_000,
+    ),
+
+    TrainConfig(
+        name="pi0_fast_furniturebench_insert_150",
+        model=pi0_fast.Pi0FASTConfig(action_dim=8, action_horizon=10, max_token_len=180),
+        data=LeRobotFurnitureBenchDataConfig(
+            repo_id="fb_full",
             # repo_id="physical-intelligence/libero",
             base_config=DataConfig(
                 local_files_only=True,  # Set to True for local-only datasets.
