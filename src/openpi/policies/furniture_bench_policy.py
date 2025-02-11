@@ -34,29 +34,55 @@ class FurnitureBenchInputs(transforms.DataTransformFn):
 
     # Determines which model will be used.
     model_type: _model.ModelType = _model.ModelType.PI0
+    use_joint: bool = True
+
 
     def __call__(self, data: dict) -> dict:
-        state = np.concatenate([data["observation/joint_position"], data["observation/gripper_position"]])
-        # state = transforms.pad_to_dim(state, self.action_dim)
-        state = transforms.pad_to_dim(state, 32)
+        if self.use_joint:
+            state = np.concatenate([data["observation/joint_position"], data["observation/gripper_position"]])
+            # state = transforms.pad_to_dim(state, self.action_dim)
+            state = transforms.pad_to_dim(state, 32)
 
-        # Possibly need to parse images to uint8 (H,W,C) since LeRobot automatically
-        # stores as float32 (C,H,W), gets skipped for policy inference
-        base_image = _parse_image(data["observation/exterior_image_1_left"])
-        wrist_image = _parse_image(data["observation/wrist_image_left"])
+            # Possibly need to parse images to uint8 (H,W,C) since LeRobot automatically
+            # stores as float32 (C,H,W), gets skipped for policy inference
+            base_image = _parse_image(data["observation/exterior_image_1_left"])
+            wrist_image = _parse_image(data["observation/wrist_image_left"])
 
-        match self.model_type:
-            case _model.ModelType.PI0:
-                names = ("base_0_rgb", "left_wrist_0_rgb", "right_wrist_0_rgb")
-                images = (base_image, wrist_image, np.zeros_like(base_image))
-                image_masks = (np.True_, np.True_, np.False_)
-            case _model.ModelType.PI0_FAST:
-                names = ("base_0_rgb", "base_1_rgb", "wrist_0_rgb")
-                # We don't mask out padding images for FAST models.
-                images = (base_image, np.zeros_like(base_image), wrist_image)
-                image_masks = (np.True_, np.True_, np.True_)
-            case _:
-                raise ValueError(f"Unsupported model type: {self.model_type}")
+            match self.model_type:
+                case _model.ModelType.PI0:
+                    names = ("base_0_rgb", "left_wrist_0_rgb", "right_wrist_0_rgb")
+                    images = (base_image, wrist_image, np.zeros_like(base_image))
+                    image_masks = (np.True_, np.True_, np.False_)
+                case _model.ModelType.PI0_FAST:
+                    names = ("base_0_rgb", "base_1_rgb", "wrist_0_rgb")
+                    # We don't mask out padding images for FAST models.
+                    images = (base_image, np.zeros_like(base_image), wrist_image)
+                    image_masks = (np.True_, np.True_, np.True_)
+                case _:
+                    raise ValueError(f"Unsupported model type: {self.model_type}")
+        else:
+            state = np.concatenate([data["observation/state"][:7], [data["observation/state"][-1]]])
+            # state = transforms.pad_to_dim(state, self.action_dim)
+            # state = transforms.pad_to_dim(state, 32)
+            assert state.shape == (8,)
+
+            # Possibly need to parse images to uint8 (H,W,C) since LeRobot automatically
+            # stores as float32 (C,H,W), gets skipped for policy inference
+            base_image = _parse_image(data["observation/agentview_image"])
+            wrist_image = _parse_image(data["observation/wrist_image"])
+
+            match self.model_type:
+                case _model.ModelType.PI0:
+                    names = ("base_0_rgb", "left_wrist_0_rgb", "right_wrist_0_rgb")
+                    images = (base_image, wrist_image, np.zeros_like(base_image))
+                    image_masks = (np.True_, np.True_, np.False_)
+                case _model.ModelType.PI0_FAST:
+                    names = ("agentview_image", "wrist_image")
+                    # We don't mask out padding images for FAST models.
+                    images = (base_image, wrist_image)
+                    image_masks = (np.True_, np.True_)
+                case _:
+                    raise ValueError(f"Unsupported model type: {self.model_type}")
 
         inputs = {
             "state": state,

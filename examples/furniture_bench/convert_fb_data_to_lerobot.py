@@ -38,18 +38,16 @@ def create_empty_dataset(
     dataset_config: DatasetConfig = DEFAULT_DATASET_CONFIG,
 ) -> LeRobotDataset:
     cameras = [
-            "color_image1",
-            "color_image2",
-            "color_image3",
-            "color_image4",
+            "wrist_image",
+            "agentview_image",
         ]
     features = {
         "action": {
             "dtype": "float32",
             "shape": (8,),  # Action length is 8 based on provided structure
             "names": [
-                "action_0", "action_1", "action_2", "action_3",
-                "action_4", "action_5", "gripper_open", "gripper_close",
+                "pos1", "pos2", "pos3", "quat1",
+                "quat2", "quat3", "quat4", "gripper_width",
             ],
         },
 
@@ -159,10 +157,8 @@ def load_raw_episode_data(pkl_path: Path):
 
     # Initialize lists for each type of data
     images = {  # Store lists of images for each camera
-        "color_image1": [],
-        "color_image2": [],
-        "color_image3": [],
-        "color_image4": [],
+        "wrist_image": [],
+        "agentview_image": [],
     }
     robot_states = []  # Robot state over timesteps
     # parts_poses = []  # Parts poses over timesteps
@@ -170,10 +166,8 @@ def load_raw_episode_data(pkl_path: Path):
     # Iterate through each timestep and extract the data
     for timestep in obs:
         # Store images
-        images["color_image1"].append(timestep["color_image1"])
-        images["color_image2"].append(timestep["color_image2"])
-        images["color_image3"].append(timestep["color_image3"])
-        images["color_image4"].append(timestep["color_image4"])
+        images["wrist_image"].append(timestep["color_image1"])
+        images["agentview_image"].append(timestep["color_image2"])
 
         # Store robot state
         robot_state_dict = timestep["robot_state"]
@@ -195,9 +189,9 @@ def load_raw_episode_data(pkl_path: Path):
     # images = value, axis=0) for key, value in images.items()}  # (T, 224, 224, 3)
     robot_states = torch.from_numpy(np.stack(robot_states, axis=0))  # (T, 28)
     # parts_poses = np.stack(parts_poses, axis=0)  # (T, 28)
-    actions = torch.from_numpy(np.array(data['actions']))  # (T, 8)
+    action = torch.from_numpy(np.array(data['actions']))  # (T, 8)
 
-    return images, robot_states, actions, demo_id, furniturebench_id
+    return images, robot_states, action, demo_id, furniturebench_id
 
 def populate_dataset(
     dataset: LeRobotDataset,

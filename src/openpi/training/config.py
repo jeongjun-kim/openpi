@@ -83,7 +83,7 @@ class DataConfig:
     # Names of keys that will be used by the data loader to generate the action sequence. The length of the
     # sequence is defined by the `action_horizon` field in the model config. This should be adjusted if your
     # LeRobot dataset is using different keys to represent the action.
-    action_sequence_keys: Sequence[str] = ("actions",)
+    action_sequence_keys: Sequence[str] = ("action",)
 
     # If true, will use the LeRobot dataset task to define the prompt.
     prompt_from_task: bool = False
@@ -292,6 +292,53 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
             model_transforms=model_transforms,
         )
 
+##################################################################################################################
+# custom dataset
+##################################################################################################################
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotFurnitureBenchDataConfig(DataConfigFactory):
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        # Make inputs look like they come from the Libero environment
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        # "ddddddd" : 
+                        "observation/agentview_image": "observation.images.agentview_image",
+                        "observation/wrist_image": "observation.images.wrist_image",
+                        "observation/state": "observation.state",
+                        "actions": "action",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+
+        # Prepare data for policy training
+        # Convert images to uint8 numpy arrays, add masks
+        data_transforms = _transforms.Group(
+            inputs=[furniture_bench_policy.FurnitureBenchInputs(action_dim=model_config.action_dim, model_type=ModelType.PI0_FAST, use_joint=False)],
+            outputs=[furniture_bench_policy.FurnitureBenchOutputs()],
+        )
+        # Use delta actions (not for gripper)
+        delta_action_mask = _transforms.make_bool_mask(7, -1)
+        data_transforms = data_transforms.push(
+            inputs=[_transforms.DeltaActions(_transforms.make_bool_mask(7, 0, 1))], # TODO : revise for eef
+            outputs=[_transforms.AbsoluteActions(delta_action_mask)], 
+        )
+
+        # Model transforms include things like tokenizing the prompt and action targets
+        model_transforms = ModelTransformFactory()(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
+
 
 @dataclasses.dataclass(frozen=True)
 class TrainConfig:
@@ -357,7 +404,7 @@ class TrainConfig:
     # device memory will be reduced but training could potentially be slower.
     # eg. if total device is 4 and fsdp devices is 2; then the model will shard to 2 devices and run
     # data parallel between 2 groups of devices.
-    fsdp_devices: int = 4
+    fsdp_devices: int = 2
 
     @property
     def assets_dirs(self) -> pathlib.Path:
@@ -564,6 +611,7 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=20_000,
     ),
+    
     # This config is used to demonstrate how to train on a simple simulated environment.
     TrainConfig(
         name="pi0_aloha_sim",
@@ -576,6 +624,25 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=20_000,
     ),
+    ################################################################################################################
+    # custom inference
+    ################################################################################################################
+    TrainConfig(
+        name="pi0_fast_furniturebench_insert",
+        model=pi0_fast.Pi0FASTConfig(action_dim=8, action_horizon=10, max_token_len=180),
+        data=LeRobotFurnitureBenchDataConfig(
+            repo_id="fb_insert",
+            # repo_id="physical-intelligence/libero",
+            base_config=DataConfig(
+                local_files_only=True,  # Set to True for local-only datasets.
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        num_train_steps=10_000,
+    ),
+
+
     #
     # Debugging configs.
     #
